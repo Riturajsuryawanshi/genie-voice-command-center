@@ -1,6 +1,7 @@
 
 import * as React from "react";
 import GlassCard from "@/components/ui/glass-card";
+import { SplineSceneBasic } from "./SplineSceneBasic";
 
 const GlassCardDemo = () => {
   return (
@@ -10,4 +11,12 @@ const GlassCardDemo = () => {
   );
 };
 
-export { GlassCardDemo as DemoOne };
+const SplineDemo = () => {
+  return (
+    <div className="w-full p-6">
+      <SplineSceneBasic />
+    </div>
+  );
+};
+
+export { GlassCardDemo as DemoOne, SplineDemo };
