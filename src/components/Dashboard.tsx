@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Phone, Settings, BarChart3, MessageSquare, Copy } from 'lucide-react';
+import { Phone, Settings, BarChart3, MessageSquare, Copy, Mail, MapPin } from 'lucide-react';
 
 interface DashboardProps {
   activeTab: string;
@@ -12,7 +12,7 @@ interface DashboardProps {
 
 export const Dashboard = ({ activeTab, setActiveTab, copyNumber }: DashboardProps) => {
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header */}
       <header className="bg-white border-b px-4 lg:px-6 h-16 flex items-center shadow-sm">
         <div className="flex items-center justify-center">
@@ -35,7 +35,7 @@ export const Dashboard = ({ activeTab, setActiveTab, copyNumber }: DashboardProp
         </nav>
       </header>
 
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-8 flex-1">
         <div className="mb-8">
           <h1 className="text-3xl font-bold mb-2">Welcome to CallGenie</h1>
           <p className="text-gray-600">Manage your AI phone assistant and view call analytics</p>
@@ -158,6 +158,40 @@ export const Dashboard = ({ activeTab, setActiveTab, copyNumber }: DashboardProp
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Footer */}
+      <footer className="bg-white border-t mt-auto">
+        <div className="container mx-auto px-4 py-6">
+          <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
+            <div className="flex items-center space-x-3">
+              <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-1.5 rounded-lg shadow-md">
+                <Phone className="h-4 w-4 text-white" />
+              </div>
+              <div>
+                <span className="text-lg font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+                  CallGenie
+                </span>
+                <div className="text-xs text-gray-500 -mt-1">AI Phone Assistant</div>
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-6 text-sm text-gray-600">
+              <div className="flex items-center space-x-1">
+                <Mail className="h-4 w-4" />
+                <span>support@callgenie.com</span>
+              </div>
+              <a href="#" className="hover:text-indigo-600 transition-colors">Help Center</a>
+              <a href="#" className="hover:text-indigo-600 transition-colors">Privacy</a>
+            </div>
+          </div>
+
+          <div className="border-t mt-4 pt-4 text-center">
+            <p className="text-xs text-gray-500">
+              © 2024 CallGenie. All rights reserved.
+            </p>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 };

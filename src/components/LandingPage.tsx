@@ -1,7 +1,6 @@
-
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Phone, MessageSquare, Brain, Shield } from 'lucide-react';
+import { Phone, MessageSquare, Brain, Shield, Mail, MapPin } from 'lucide-react';
 
 interface LandingPageProps {
   onLogin: () => void;
@@ -96,6 +95,79 @@ export const LandingPage = ({ onLogin }: LandingPageProps) => {
           </div>
         </div>
       </section>
+
+      {/* Footer */}
+      <footer className="bg-gray-900 text-white py-12">
+        <div className="container px-4 md:px-6 mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+            {/* Company Info */}
+            <div className="space-y-4">
+              <div className="flex items-center space-x-3">
+                <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-2 rounded-xl shadow-lg">
+                  <Phone className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <span className="text-xl font-bold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
+                    CallGenie
+                  </span>
+                  <div className="text-xs text-gray-400 -mt-1">AI Phone Assistant</div>
+                </div>
+              </div>
+              <p className="text-gray-400 text-sm">
+                Revolutionizing phone communication with intelligent AI responses and seamless automation.
+              </p>
+            </div>
+
+            {/* Product */}
+            <div className="space-y-4">
+              <h3 className="font-semibold text-lg">Product</h3>
+              <ul className="space-y-2 text-sm text-gray-400">
+                <li><a href="#" className="hover:text-white transition-colors">Features</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">Pricing</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">API</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">Documentation</a></li>
+              </ul>
+            </div>
+
+            {/* Support */}
+            <div className="space-y-4">
+              <h3 className="font-semibold text-lg">Support</h3>
+              <ul className="space-y-2 text-sm text-gray-400">
+                <li><a href="#" className="hover:text-white transition-colors">Help Center</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">Contact Us</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">Status</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">Community</a></li>
+              </ul>
+            </div>
+
+            {/* Contact */}
+            <div className="space-y-4">
+              <h3 className="font-semibold text-lg">Contact</h3>
+              <div className="space-y-3 text-sm text-gray-400">
+                <div className="flex items-center space-x-2">
+                  <Mail className="h-4 w-4" />
+                  <span>support@callgenie.com</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <MapPin className="h-4 w-4" />
+                  <span>San Francisco, CA</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t border-gray-800 mt-8 pt-8 flex flex-col md:flex-row justify-between items-center">
+            <p className="text-sm text-gray-400">
+              © 2024 CallGenie. All rights reserved.
+            </p>
+            <div className="flex space-x-6 mt-4 md:mt-0">
+              <a href="#" className="text-sm text-gray-400 hover:text-white transition-colors">Privacy Policy</a>
+              <a href="#" className="text-sm text-gray-400 hover:text-white transition-colors">Terms of Service</a>
+              <a href="#" className="text-sm text-gray-400 hover:text-white transition-colors">Cookie Policy</a>
+            </div>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 };
