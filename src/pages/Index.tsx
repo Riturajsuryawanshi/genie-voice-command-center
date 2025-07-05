@@ -31,19 +31,21 @@ const Index = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-violet-50">
-      <LandingPage onLogin={handleLogin} />
-      
-      {/* Interactive 3D Demo Section */}
-      <section className="px-4 lg:px-6 py-16 bg-gradient-to-br from-violet-50 to-indigo-50">
-        <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold mb-4">Experience the Future</h2>
-            <p className="text-xl text-gray-600">Interact with our AI-powered interface</p>
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-indigo-50 via-white to-violet-50">
+      <div className="flex-1">
+        <LandingPage onLogin={handleLogin} />
+        
+        {/* Interactive 3D Demo Section */}
+        <section className="px-4 lg:px-6 py-16 bg-gradient-to-br from-violet-50 to-indigo-50">
+          <div className="max-w-6xl mx-auto">
+            <div className="text-center mb-12">
+              <h2 className="text-3xl font-bold mb-4">Experience the Future</h2>
+              <p className="text-xl text-gray-600">Interact with our AI-powered interface</p>
+            </div>
+            <SplineDemo />
           </div>
-          <SplineDemo />
-        </div>
-      </section>
+        </section>
+      </div>
     </div>
   );
 };
