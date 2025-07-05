@@ -11,10 +11,19 @@ export const LandingPage = ({ onLogin }: LandingPageProps) => {
   return (
     <div className="min-h-screen">
       {/* Header */}
-      <header className="px-4 lg:px-6 h-14 flex items-center border-b">
+      <header className="px-4 lg:px-6 h-16 flex items-center border-b bg-white shadow-sm">
         <div className="flex items-center justify-center">
-          <Phone className="h-6 w-6 text-indigo-600" />
-          <span className="ml-2 text-xl font-bold">CallGenie</span>
+          <div className="flex items-center space-x-3">
+            <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-2 rounded-xl shadow-lg">
+              <Phone className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <span className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+                CallGenie
+              </span>
+              <div className="text-xs text-gray-500 -mt-1">AI Phone Assistant</div>
+            </div>
+          </div>
         </div>
         <nav className="ml-auto flex gap-4 sm:gap-6">
           <Button variant="ghost" onClick={onLogin}>
