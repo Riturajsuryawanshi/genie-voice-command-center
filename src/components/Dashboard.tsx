@@ -2,7 +2,9 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Phone, Settings, BarChart3, MessageSquare, Copy, Mail, MapPin } from 'lucide-react';
+import { Phone, Settings, BarChart3, MessageSquare, Copy, Mail, MapPin, LogOut, User } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/hooks/use-toast';
 
 interface DashboardProps {
   activeTab: string;
@@ -11,6 +13,33 @@ interface DashboardProps {
 }
 
 export const Dashboard = ({ activeTab, setActiveTab, copyNumber }: DashboardProps) => {
+  const { user, signOut } = useAuth();
+  const { toast } = useToast();
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      toast({
+        title: "Signed out successfully",
+        description: "You have been signed out of your account.",
+      });
+    } catch (error) {
+      toast({
+        title: "Sign out failed",
+        description: "There was an error signing out. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleCopyNumber = () => {
+    copyNumber();
+    toast({
+      title: "Number copied!",
+      description: "Your CallGenie number has been copied to clipboard.",
+    });
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header */}
@@ -28,16 +57,21 @@ export const Dashboard = ({ activeTab, setActiveTab, copyNumber }: DashboardProp
             </div>
           </div>
         </div>
-        <nav className="ml-auto flex gap-4 sm:gap-6">
-          <Button variant="ghost">
-            Profile
+        <nav className="ml-auto flex gap-4 sm:gap-6 items-center">
+          <div className="flex items-center space-x-2 text-sm text-gray-600">
+            <User className="h-4 w-4" />
+            <span>{user?.email}</span>
+          </div>
+          <Button variant="ghost" onClick={handleSignOut}>
+            <LogOut className="h-4 w-4 mr-2" />
+            Sign Out
           </Button>
         </nav>
       </header>
 
       <div className="container mx-auto px-4 py-8 flex-1">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Welcome to CallGenie</h1>
+          <h1 className="text-3xl font-bold mb-2">Welcome back, {user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User'}!</h1>
           <p className="text-gray-600">Manage your AI phone assistant and view call analytics</p>
         </div>
 
@@ -58,7 +92,7 @@ export const Dashboard = ({ activeTab, setActiveTab, copyNumber }: DashboardProp
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">+1 (555) 123-4567</div>
-                  <Button size="sm" variant="outline" onClick={copyNumber} className="mt-2">
+                  <Button size="sm" variant="outline" onClick={handleCopyNumber} className="mt-2">
                     <Copy className="h-4 w-4 mr-2" />
                     Copy Number
                   </Button>
