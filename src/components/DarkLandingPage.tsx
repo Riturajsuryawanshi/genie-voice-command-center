@@ -76,7 +76,7 @@ function ElegantShape({
     );
 }
 
-function SectionWithShapes({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+function SectionWithShapes({ children, className = "", ...props }: { children: React.ReactNode; className?: string; [key: string]: any }) {
     return (
         <div className={cn("relative overflow-hidden bg-[#030303]", className)}>
             <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/[0.05] via-transparent to-rose-500/[0.05] blur-3xl" />
@@ -583,21 +583,21 @@ export const DarkLandingPage = () => {
                     <Mail className="h-5 w-5 text-indigo-400" />
                     <div>
                       <div className="font-medium text-white">Email</div>
-                      <div className="text-white/60">support@callgenie.com</div>
+                      <div className="text-white/60">riturajsuryawanshi51@gmail.com</div>
                     </div>
                   </div>
                   <div className="flex items-center space-x-3">
                     <MapPin className="h-5 w-5 text-indigo-400" />
                     <div>
                       <div className="font-medium text-white">Address</div>
-                      <div className="text-white/60">San Francisco, CA</div>
+                      <div className="text-white/60">Bhopal MP INDIA</div>
                     </div>
                   </div>
                   <div className="flex items-center space-x-3">
                     <Phone className="h-5 w-5 text-indigo-400" />
                     <div>
                       <div className="font-medium text-white">Phone</div>
-                      <div className="text-white/60">+1 (555) 123-4567</div>
+                      <div className="text-white/60">+917089956401</div>
                     </div>
                   </div>
                 </div>

@@ -209,10 +209,10 @@ export const Dashboard = ({ activeTab, setActiveTab, copyNumber }: DashboardProp
               </div>
             </div>
 
-            <div className="flex items-center space-x-6 text-sm text-gray-600">
+                          <div className="flex items-center space-x-6 text-sm text-gray-600">
               <div className="flex items-center space-x-1">
                 <Mail className="h-4 w-4" />
-                <span>support@callgenie.com</span>
+                <span>riturajsuryawanshi51@gmail.com</span>
               </div>
               <a href="#" className="hover:text-indigo-600 transition-colors">Help Center</a>
               <a href="#" className="hover:text-indigo-600 transition-colors">Privacy</a>
