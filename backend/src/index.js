@@ -9,10 +9,16 @@ app.use(express.json());
 // Import routes
 const authRoutes = require('./routes/auth');
 const webhookRoutes = require('./routes/webhook');
+const gptRoutes = require('./routes/gpt');
+const sttRoutes = require('./routes/stt');
+const ttsRoutes = require('./routes/tts');
 
 // Mount routes
 app.use('/api/auth', authRoutes);
 app.use('/api/webhook', webhookRoutes);
+app.use('/api/gpt', gptRoutes);
+app.use('/api/stt', sttRoutes);
+app.use('/api/tts', ttsRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {

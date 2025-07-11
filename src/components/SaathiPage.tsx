@@ -1,9 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Mic, MicOff, Volume2, VolumeX, Phone, MessageSquare, Brain, Settings, Play, Pause, RotateCcw, TestTube } from 'lucide-react';
+import { Mic, MicOff, Volume2, VolumeX, Phone, MessageSquare, Brain, Settings, Play, Pause, RotateCcw, TestTube, Send, User, Bot, Sparkles } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { VoiceAssistant } from './VoiceAssistant';
+import { ChatInterface } from './ChatInterface';
 
 // Extend User type to include phone_number
 interface ExtendedUser {
@@ -35,15 +37,64 @@ export const SaathiPage = () => {
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [autoSpeak, setAutoSpeak] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [assignedPhoneNumber, setAssignedPhoneNumber] = useState<string>('');
+  const [interimTranscript, setInterimTranscript] = useState('');
+  const [voiceMode, setVoiceMode] = useState<'chat' | 'voice'>('voice');
+  const [conversationHistory, setConversationHistory] = useState<string>('');
+  const [activeTab, setActiveTab] = useState<'chat' | 'voice' | 'ai'>('ai');
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
   const synthesisRef = useRef<SpeechSynthesis | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Focus input after sending message
+  useEffect(() => {
+    if (!isProcessing && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [isProcessing]);
+
+  // Fetch user's assigned phone number
+  useEffect(() => {
+    const fetchUserPhoneNumber = async () => {
+      if (!user?.id) return;
+      
+      try {
+        const response = await fetch(`/api/auth/phone/${user.id}`);
+        const data = await response.json();
+        
+        if (data.success && data.phone_number) {
+          setAssignedPhoneNumber(data.phone_number);
+        } else {
+          // If no phone number assigned, try to assign one
+          const onboardResponse = await fetch('/api/auth/onboard', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              user_id: user.id
+            }),
+          });
+          
+          const onboardData = await onboardResponse.json();
+          if (onboardData.success && onboardData.phone_number) {
+            setAssignedPhoneNumber(onboardData.phone_number);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch phone number:', error);
+      }
+    };
+
+    fetchUserPhoneNumber();
+  }, [user?.id]);
 
   // Initialize speech recognition
   useEffect(() => {
@@ -56,11 +107,18 @@ export const SaathiPage = () => {
 
       recognitionRef.current.onresult = (event: any) => {
         let finalTranscript = '';
+        let interimTranscript = '';
+        
         for (let i = event.resultIndex; i < event.results.length; i++) {
           if (event.results[i].isFinal) {
             finalTranscript += event.results[i][0].transcript;
+          } else {
+            interimTranscript += event.results[i][0].transcript;
           }
         }
+        
+        setInterimTranscript(interimTranscript);
+        
         if (finalTranscript) {
           handleVoiceInput(finalTranscript);
         }
@@ -69,11 +127,17 @@ export const SaathiPage = () => {
       recognitionRef.current.onerror = (event: any) => {
         console.error('Speech recognition error:', event.error);
         setIsListening(false);
+        setInterimTranscript('');
         toast({
           title: "Voice recognition error",
           description: "Please try again or check your microphone permissions.",
           variant: "destructive",
         });
+      };
+
+      recognitionRef.current.onend = () => {
+        setIsListening(false);
+        setInterimTranscript('');
       };
     }
 
@@ -86,42 +150,54 @@ export const SaathiPage = () => {
     setIsListening(false);
     setIsProcessing(true);
     
+    // Update conversation history
+    const updatedHistory = conversationHistory + `\nUser: ${text}`;
+    setConversationHistory(updatedHistory);
+    
     try {
-      // Call backend API for AI response
-      const response = await fetch('/api/webhook/test', {
+      // Call GPT API directly for better voice-to-voice experience
+      const response = await fetch('/api/gpt/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           message: text,
-          phoneNumber: extendedUser?.phone_number || '+91-9876543210' // Fallback for testing
+          conversationHistory: updatedHistory,
+          voiceMode: voiceMode,
+          userContext: {
+            name: user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User',
+            phoneNumber: assignedPhoneNumber || extendedUser?.phone_number || '+91-9876543210'
+          }
         }),
       });
 
       const data = await response.json();
       
       if (data.success) {
-        setAiResponse(data.aiResponse);
-        addMessage(data.aiResponse, false);
+        setAiResponse(data.response);
+        addMessage(data.response, false);
         
-        if (autoSpeak) {
-          speakText(data.aiResponse);
+        // Update conversation history with AI response
+        setConversationHistory(prev => prev + `\nSAATHI: ${data.response}`);
+        
+        if (autoSpeak && voiceMode === 'voice') {
+          speakText(data.response);
         }
       } else {
-        // Fallback to local response if API fails
+        // Enhanced fallback responses
         const fallbackResponses = [
-          "I understand you said: " + text + ". How can I help you further?",
-          "That's interesting! Tell me more about " + text + ".",
-          "I heard you mention " + text + ". Let me think about that...",
-          "Thank you for sharing that. What would you like to know about " + text + "?",
-          "I'm processing your request about " + text + ". Please wait a moment."
+          `I heard you say: "${text}". That's interesting! Tell me more about it.`,
+          `You mentioned: "${text}". I'd love to help you with that. What specific information are you looking for?`,
+          `I understand you're asking about: "${text}". Let me think about the best way to help you with this.`,
+          `Thank you for sharing: "${text}". How can I assist you further with this topic?`,
+          `I caught that you said: "${text}". This sounds important. What would you like to know more about?`
         ];
         const randomResponse = fallbackResponses[Math.floor(Math.random() * fallbackResponses.length)];
         setAiResponse(randomResponse);
         addMessage(randomResponse, false);
         
-        if (autoSpeak) {
+        if (autoSpeak && voiceMode === 'voice') {
           speakText(randomResponse);
         }
       }
@@ -129,20 +205,28 @@ export const SaathiPage = () => {
       console.error('API call failed:', error);
       toast({
         title: "Connection error",
-        description: "Using local fallback response.",
+        description: "Using enhanced local response.",
         variant: "destructive",
       });
       
-      // Fallback response
-      const fallbackResponse = "I'm having trouble connecting to my AI brain right now, but I heard you say: " + text + ". Please try again later.";
-      setAiResponse(fallbackResponse);
-      addMessage(fallbackResponse, false);
+      // Enhanced local response
+      const localResponses = [
+        `I understand you said: "${text}". That's a great point! What would you like to explore further?`,
+        `You mentioned: "${text}". I'd be happy to help you with that. Could you provide more details?`,
+        `Interesting! You said: "${text}". Let me help you with this. What specific aspect would you like to focus on?`,
+        `Thank you for sharing: "${text}". This is valuable information. How can I assist you best?`,
+        `I caught that you said: "${text}". This is important. What would you like to know more about?`
+      ];
+      const randomLocalResponse = localResponses[Math.floor(Math.random() * localResponses.length)];
+      setAiResponse(randomLocalResponse);
+      addMessage(randomLocalResponse, false);
       
-      if (autoSpeak) {
-        speakText(fallbackResponse);
+      if (autoSpeak && voiceMode === 'voice') {
+        speakText(randomLocalResponse);
       }
     } finally {
       setIsProcessing(false);
+      setCurrentInput('');
     }
   };
 
@@ -157,18 +241,13 @@ export const SaathiPage = () => {
   };
 
   const startListening = () => {
-    if (recognitionRef.current) {
+    if (recognitionRef.current && voiceEnabled) {
       recognitionRef.current.start();
       setIsListening(true);
+      setInterimTranscript('');
       toast({
         title: "Listening...",
         description: "Speak now to interact with SAATHI",
-      });
-    } else {
-      toast({
-        title: "Voice recognition not available",
-        description: "Please use a modern browser with speech recognition support.",
-        variant: "destructive",
       });
     }
   };
@@ -177,70 +256,113 @@ export const SaathiPage = () => {
     if (recognitionRef.current) {
       recognitionRef.current.stop();
       setIsListening(false);
+      setInterimTranscript('');
     }
   };
 
   const speakText = (text: string) => {
-    if (synthesisRef.current) {
+    if (synthesisRef.current && voiceEnabled) {
+      // Stop any ongoing speech
+      synthesisRef.current.cancel();
+      
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.rate = 0.9;
-      utterance.pitch = 1;
+      utterance.pitch = 1.0;
       utterance.volume = 0.8;
       
-      utterance.onstart = () => setIsSpeaking(true);
-      utterance.onend = () => setIsSpeaking(false);
+      utterance.onstart = () => {
+        setIsSpeaking(true);
+      };
+      
+      utterance.onend = () => {
+        setIsSpeaking(false);
+      };
+      
+      utterance.onerror = (event) => {
+        console.error('Speech synthesis error:', event);
+        setIsSpeaking(false);
+      };
       
       synthesisRef.current.speak(utterance);
     }
   };
 
   const handleTextInput = async (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && currentInput.trim()) {
+    if (e.key === 'Enter' && currentInput.trim() && !isProcessing) {
+      e.preventDefault();
       const text = currentInput.trim();
-      addMessage(text, true);
       setCurrentInput('');
+      addMessage(text, true);
       setIsProcessing(true);
       
+      // Update conversation history
+      const updatedHistory = conversationHistory + `\nUser: ${text}`;
+      setConversationHistory(updatedHistory);
+      
       try {
-        // Call backend API for AI response
-        const response = await fetch('/api/webhook/test', {
+        const response = await fetch('/api/gpt/chat', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
             message: text,
-            phoneNumber: extendedUser?.phone_number || '+91-9876543210'
+            conversationHistory: updatedHistory,
+            voiceMode: voiceMode,
+            userContext: {
+              name: user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User',
+              phoneNumber: assignedPhoneNumber || extendedUser?.phone_number || '+91-9876543210'
+            }
           }),
         });
 
         const data = await response.json();
         
         if (data.success) {
-          setAiResponse(data.aiResponse);
-          addMessage(data.aiResponse, false);
+          setAiResponse(data.response);
+          addMessage(data.response, false);
+          setConversationHistory(prev => prev + `\nSAATHI: ${data.response}`);
           
-          if (autoSpeak) {
-            speakText(data.aiResponse);
+          if (autoSpeak && voiceMode === 'voice') {
+            speakText(data.response);
           }
         } else {
-          // Fallback response
-          const fallbackResponse = "I understand you said: " + text + ". How can I help you further?";
-          setAiResponse(fallbackResponse);
-          addMessage(fallbackResponse, false);
+          const fallbackResponses = [
+            `I understand you said: "${text}". That's interesting! Tell me more about it.`,
+            `You mentioned: "${text}". I'd love to help you with that. What specific information are you looking for?`,
+            `I understand you're asking about: "${text}". Let me think about the best way to help you with this.`,
+            `Thank you for sharing: "${text}". How can I assist you further with this topic?`,
+            `I caught that you said: "${text}". This sounds important. What would you like to know more about?`
+          ];
+          const randomResponse = fallbackResponses[Math.floor(Math.random() * fallbackResponses.length)];
+          setAiResponse(randomResponse);
+          addMessage(randomResponse, false);
           
-          if (autoSpeak) {
-            speakText(fallbackResponse);
+          if (autoSpeak && voiceMode === 'voice') {
+            speakText(randomResponse);
           }
         }
       } catch (error) {
         console.error('API call failed:', error);
-        const fallbackResponse = "I'm having trouble connecting right now, but I heard you say: " + text + ". Please try again later.";
-        setAiResponse(fallbackResponse);
-        addMessage(fallbackResponse, false);
+        toast({
+          title: "Connection error",
+          description: "Using enhanced local response.",
+          variant: "destructive",
+        });
         
-        if (autoSpeak) {
-          speakText(fallbackResponse);
+        const localResponses = [
+          `I understand you said: "${text}". That's a great point! What would you like to explore further?`,
+          `You mentioned: "${text}". I'd be happy to help you with that. Could you provide more details?`,
+          `Interesting! You said: "${text}". Let me help you with this. What specific aspect would you like to focus on?`,
+          `Thank you for sharing: "${text}". This is valuable information. How can I assist you best?`,
+          `I caught that you said: "${text}". This is important. What would you like to know more about?`
+        ];
+        const randomLocalResponse = localResponses[Math.floor(Math.random() * localResponses.length)];
+        setAiResponse(randomLocalResponse);
+        addMessage(randomLocalResponse, false);
+        
+        if (autoSpeak && voiceMode === 'voice') {
+          speakText(randomLocalResponse);
         }
       } finally {
         setIsProcessing(false);
@@ -252,6 +374,7 @@ export const SaathiPage = () => {
     setMessages([]);
     setAiResponse('');
     setCurrentInput('');
+    setConversationHistory('');
   };
 
   const testBackendConnection = async () => {
@@ -289,283 +412,280 @@ export const SaathiPage = () => {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50">
+    <div className="h-screen bg-gray-50 flex flex-col">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            <div className="flex items-center space-x-3">
-              <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-2 rounded-xl shadow-lg">
-                <Brain className="h-6 w-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-                  SAATHI
-                </h1>
-                <p className="text-sm text-gray-500">Your AI Voice Companion</p>
-              </div>
+      <header className="bg-white border-b border-gray-200 px-4 py-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-2 rounded-lg">
+              <Brain className="h-5 w-5 text-white" />
             </div>
+            <div>
+              <h1 className="text-xl font-semibold text-gray-900">SAATHI</h1>
+              <p className="text-xs text-gray-500">Your AI Voice Companion</p>
+            </div>
+          </div>
+          
+          <div className="flex items-center space-x-2">
+            <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
+            <span className="text-xs text-gray-600">
+              {isConnected ? 'Connected' : 'Disconnected'}
+            </span>
             
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2">
-                <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                <span className="text-sm text-gray-600">
-                  {isConnected ? 'Connected' : 'Disconnected'}
-                </span>
-              </div>
-              
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={testBackendConnection}
-                className="text-blue-600 hover:text-blue-700"
-              >
-                <TestTube className="h-4 w-4 mr-2" />
-                Test Connection
-              </Button>
-              
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setVoiceEnabled(!voiceEnabled)}
-                className={voiceEnabled ? 'text-green-600 border-green-600' : 'text-red-600 border-red-600'}
-              >
-                {voiceEnabled ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
-                Voice
-              </Button>
-              
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setAutoSpeak(!autoSpeak)}
-                className={autoSpeak ? 'text-blue-600 border-blue-600' : 'text-gray-600 border-gray-600'}
-              >
-                {autoSpeak ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
-                Auto-Speak
-              </Button>
-            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setVoiceMode(voiceMode === 'voice' ? 'chat' : 'voice')}
+              className={`text-xs ${voiceMode === 'voice' ? 'text-purple-600 border-purple-600' : 'text-gray-600 border-gray-600'}`}
+            >
+              {voiceMode === 'voice' ? <Mic className="h-3 w-3 mr-1" /> : <MessageSquare className="h-3 w-3 mr-1" />}
+              {voiceMode === 'voice' ? 'Voice' : 'Chat'}
+            </Button>
+            
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={clearConversation}
+              className="text-xs text-gray-500 hover:text-red-600"
+            >
+              <RotateCcw className="h-3 w-3 mr-1" />
+              Clear
+            </Button>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Conversation Area */}
-          <div className="lg:col-span-2">
-            <Card className="h-[600px] flex flex-col">
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span>Conversation</span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={clearConversation}
-                    className="text-gray-500 hover:text-red-600"
-                  >
-                    <RotateCcw className="h-4 w-4 mr-2" />
-                    Clear
-                  </Button>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="flex-1 flex flex-col">
-                {/* Messages */}
-                <div className="flex-1 overflow-y-auto space-y-4 mb-4">
-                  {messages.length === 0 ? (
-                    <div className="text-center text-gray-500 py-8">
-                      <Brain className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                      <p>Start a conversation with SAATHI</p>
-                      <p className="text-sm">Use voice or text to begin</p>
-                      {!isConnected && (
-                        <div className="mt-4 p-3 bg-yellow-50 rounded-md">
-                          <p className="text-sm text-yellow-700">
-                            ⚠️ Backend disconnected - using local mode
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    messages.map((message) => (
-                      <div
-                        key={message.id}
-                        className={`flex ${message.isUser ? 'justify-end' : 'justify-start'}`}
-                      >
-                        <div
-                          className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                            message.isUser
-                              ? 'bg-indigo-600 text-white'
-                              : 'bg-gray-100 text-gray-800'
-                          }`}
-                        >
-                          <p className="text-sm">{message.text}</p>
-                          <p className="text-xs opacity-70 mt-1">
-                            {message.timestamp.toLocaleTimeString()}
-                          </p>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                  {isProcessing && (
-                    <div className="flex justify-start">
-                      <div className="bg-gray-100 text-gray-800 px-4 py-2 rounded-lg">
-                        <div className="flex items-center space-x-2">
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-indigo-600"></div>
-                          <span className="text-sm">SAATHI is thinking...</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  <div ref={messagesEndRef} />
-                </div>
+      {/* Tab Navigation */}
+      <div className="border-b border-gray-200 bg-white">
+        <div className="max-w-4xl mx-auto px-4">
+          <div className="flex space-x-8">
+            <button
+              onClick={() => setActiveTab('ai')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'ai'
+                  ? 'border-indigo-500 text-indigo-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <Sparkles className="h-4 w-4 inline mr-2" />
+              AI Chat
+            </button>
+            <button
+              onClick={() => setActiveTab('chat')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'chat'
+                  ? 'border-indigo-500 text-indigo-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <MessageSquare className="h-4 w-4 inline mr-2" />
+              Chat Mode
+            </button>
+            <button
+              onClick={() => setActiveTab('voice')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'voice'
+                  ? 'border-indigo-500 text-indigo-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <Mic className="h-4 w-4 inline mr-2" />
+              Voice Assistant
+            </button>
+          </div>
+        </div>
+      </div>
 
-                {/* Input Area */}
-                <div className="border-t pt-4">
-                  <div className="flex space-x-2">
-                    <input
-                      type="text"
-                      value={currentInput}
-                      onChange={(e) => setCurrentInput(e.target.value)}
-                      onKeyPress={handleTextInput}
-                      placeholder="Type your message or use voice..."
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      disabled={isProcessing}
-                    />
-                    <Button
-                      onClick={isListening ? stopListening : startListening}
-                      className={`${
-                        isListening
-                          ? 'bg-red-600 hover:bg-red-700'
-                          : 'bg-indigo-600 hover:bg-indigo-700'
-                      }`}
-                      disabled={isProcessing}
-                    >
-                      {isListening ? (
-                        <>
-                          <MicOff className="h-4 w-4 mr-2" />
-                          Stop
-                        </>
-                      ) : (
-                        <>
-                          <Mic className="h-4 w-4 mr-2" />
-                          Voice
-                        </>
-                      )}
-                    </Button>
+      {/* Main Content Area */}
+      <div className="flex-1 overflow-hidden flex flex-col">
+        {activeTab === 'ai' ? (
+          <ChatInterface className="flex-1" />
+        ) : activeTab === 'voice' ? (
+          <VoiceAssistant className="flex-1" />
+        ) : (
+          <>
+            {/* Messages Container */}
+            <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6">
+          {messages.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-4 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+                <Brain className="h-8 w-8 text-white" />
+              </div>
+              <h2 className="text-xl font-semibold text-gray-900 mb-2">Welcome to SAATHI</h2>
+              <p className="text-gray-600 mb-4">Your AI voice companion is ready to help you</p>
+              <div className="flex justify-center space-x-4">
+                <Button
+                  onClick={startListening}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                  disabled={!voiceEnabled}
+                >
+                  <Mic className="h-4 w-4 mr-2" />
+                  Start Voice Chat
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => inputRef.current?.focus()}
+                >
+                  <MessageSquare className="h-4 w-4 mr-2" />
+                  Type Message
+                </Button>
+              </div>
+              {!isConnected && (
+                <div className="mt-6 p-3 bg-yellow-50 rounded-lg border border-yellow-200 max-w-md mx-auto">
+                  <p className="text-sm text-yellow-700">
+                    ⚠️ Backend disconnected - using local mode
+                  </p>
+                </div>
+              )}
+            </div>
+          ) : (
+            messages.map((message) => (
+              <div
+                key={message.id}
+                className={`flex ${message.isUser ? 'justify-end' : 'justify-start'}`}
+              >
+                <div className={`flex items-start space-x-3 max-w-3xl ${message.isUser ? 'flex-row-reverse space-x-reverse' : ''}`}>
+                  <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
+                    message.isUser 
+                      ? 'bg-indigo-600' 
+                      : 'bg-gradient-to-br from-indigo-500 to-purple-600'
+                  }`}>
+                    {message.isUser ? (
+                      <User className="h-4 w-4 text-white" />
+                    ) : (
+                      <Bot className="h-4 w-4 text-white" />
+                    )}
+                  </div>
+                  <div className={`px-4 py-3 rounded-2xl ${
+                    message.isUser
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-white border border-gray-200 text-gray-900'
+                  }`}>
+                    <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.text}</p>
+                    <p className={`text-xs mt-2 ${
+                      message.isUser ? 'text-indigo-200' : 'text-gray-500'
+                    }`}>
+                      {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </p>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-          </div>
+              </div>
+            ))
+          )}
+          
+          {/* Typing Indicator */}
+          {isProcessing && (
+            <div className="flex justify-start">
+              <div className="flex items-start space-x-3">
+                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+                  <Bot className="h-4 w-4 text-white" />
+                </div>
+                <div className="px-4 py-3 rounded-2xl bg-white border border-gray-200">
+                  <div className="flex items-center space-x-1">
+                    <div className="flex space-x-1">
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                    </div>
+                    <span className="text-sm text-gray-500 ml-2">SAATHI is typing...</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {/* Interim Transcript */}
+          {interimTranscript && (
+            <div className="flex justify-start">
+              <div className="flex items-start space-x-3">
+                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center">
+                  <User className="h-4 w-4 text-white" />
+                </div>
+                <div className="px-4 py-3 rounded-2xl bg-indigo-100 border border-indigo-200">
+                  <div className="flex items-center space-x-2 mb-1">
+                    <div className="animate-pulse w-2 h-2 bg-indigo-500 rounded-full"></div>
+                    <span className="text-xs text-indigo-600 font-medium">Listening...</span>
+                  </div>
+                  <p className="text-sm text-indigo-700 italic">"{interimTranscript}"</p>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          <div ref={messagesEndRef} />
+        </div>
 
-          {/* Control Panel */}
-          <div className="space-y-6">
-            {/* Voice Controls */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Mic className="h-5 w-5 mr-2" />
-                  Voice Controls
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
+        {/* Sticky Input Area */}
+        <div className="border-t border-gray-200 bg-white px-4 py-4">
+          <div className="max-w-4xl mx-auto">
+            <div className="flex items-end space-x-3">
+              <div className="flex-1 relative">
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={currentInput}
+                  onChange={(e) => setCurrentInput(e.target.value)}
+                  onKeyPress={handleTextInput}
+                  placeholder={voiceMode === 'voice' ? "Type your message or use voice..." : "Type your message..."}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
+                  disabled={isProcessing}
+                />
+                {voiceMode === 'voice' && (
                   <Button
                     onClick={isListening ? stopListening : startListening}
-                    className={`w-full ${
+                    className={`absolute right-2 top-1/2 transform -translate-y-1/2 p-2 rounded-full ${
                       isListening
-                        ? 'bg-red-600 hover:bg-red-700'
-                        : 'bg-green-600 hover:bg-green-700'
+                        ? 'bg-red-500 hover:bg-red-600 text-white'
+                        : 'bg-indigo-500 hover:bg-indigo-600 text-white'
                     }`}
                     disabled={isProcessing}
                   >
                     {isListening ? (
-                      <>
-                        <MicOff className="h-4 w-4 mr-2" />
-                        Stop Listening
-                      </>
+                      <MicOff className="h-4 w-4" />
                     ) : (
-                      <>
-                        <Mic className="h-4 w-4 mr-2" />
-                        Start Listening
-                      </>
+                      <Mic className="h-4 w-4" />
                     )}
                   </Button>
-                  
-                  {isSpeaking && (
-                    <div className="flex items-center justify-center p-2 bg-blue-50 rounded-md">
-                      <Volume2 className="h-4 w-4 mr-2 text-blue-600 animate-pulse" />
-                      <span className="text-sm text-blue-600">SAATHI is speaking...</span>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Settings */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Settings className="h-5 w-5 mr-2" />
-                  Settings
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm">Voice Recognition</span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setVoiceEnabled(!voiceEnabled)}
-                    className={voiceEnabled ? 'text-green-600' : 'text-red-600'}
-                  >
-                    {voiceEnabled ? 'ON' : 'OFF'}
-                  </Button>
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <span className="text-sm">Auto-Speak Responses</span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setAutoSpeak(!autoSpeak)}
-                    className={autoSpeak ? 'text-blue-600' : 'text-gray-600'}
-                  >
-                    {autoSpeak ? 'ON' : 'OFF'}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* User Info */}
-            {user && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center">
-                    <MessageSquare className="h-5 w-5 mr-2" />
-                    User Info
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2 text-sm">
-                    <div>
-                      <span className="font-medium">Name:</span> {user.user_metadata?.full_name || 'N/A'}
-                    </div>
-                    <div>
-                      <span className="font-medium">Email:</span> {user.email}
-                    </div>
-                    <div>
-                      <span className="font-medium">Phone:</span> {extendedUser?.phone_number || 'Not assigned'}
-                    </div>
-                    <div>
-                      <span className="font-medium">Status:</span> 
-                      <span className="ml-1 text-green-600">Active</span>
-                    </div>
+                )}
+              </div>
+              
+              {voiceMode === 'chat' && (
+                <Button
+                  onClick={() => {
+                    if (currentInput.trim() && !isProcessing) {
+                      const event = { key: 'Enter', preventDefault: () => {} } as React.KeyboardEvent<HTMLInputElement>;
+                      handleTextInput(event);
+                    }
+                  }}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white p-3 rounded-full"
+                  disabled={!currentInput.trim() || isProcessing}
+                >
+                  <Send className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+            
+            {/* Voice Status */}
+            {voiceMode === 'voice' && (isSpeaking || isListening) && (
+              <div className="mt-3 flex items-center justify-center space-x-4 text-sm">
+                {isListening && (
+                  <div className="flex items-center space-x-2 text-indigo-600">
+                    <div className="animate-pulse w-2 h-2 bg-indigo-500 rounded-full"></div>
+                    <span>Listening...</span>
                   </div>
-                </CardContent>
-              </Card>
+                )}
+                {isSpeaking && (
+                  <div className="flex items-center space-x-2 text-blue-600">
+                    <Volume2 className="h-4 w-4 animate-pulse" />
+                    <span>SAATHI is speaking...</span>
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </div>
+          </>
+        )}
       </div>
     </div>
   );

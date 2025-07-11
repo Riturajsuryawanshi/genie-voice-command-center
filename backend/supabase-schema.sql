@@ -120,6 +120,16 @@ CREATE TRIGGER update_voice_preferences_updated_at BEFORE UPDATE ON voice_prefer
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Sample data for phone pool (replace with your actual numbers)
+-- IMPORTANT: Replace these with your real phone numbers from Exotel or your phone service provider
+-- Example format: INSERT INTO phone_pool (number) VALUES 
+--   ('+91-9876543210'),
+--   ('+91-9876543211'),
+--   ('+91-9876543212'),
+--   ('+91-9876543213'),
+--   ('+91-9876543214')
+-- ON CONFLICT (number) DO NOTHING;
+
+-- For now, using sample numbers for testing
 INSERT INTO phone_pool (number) VALUES 
   ('+91-9876543210'),
   ('+91-9876543211'),

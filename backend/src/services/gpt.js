@@ -58,65 +58,66 @@ async function getUserContext(phoneNumber) {
 }
 
 /**
- * Generate AI response using GPT with context and memory
+ * Generate AI response using GPT with enhanced voice-to-voice features
  * @param {string} userMessage - User's transcribed message
  * @param {string} phoneNumber - User's phone number
- * @returns {Promise<{ success: boolean, response?: string, error?: string }>}
+ * @param {Object} options - Additional options for enhanced chat
+ * @returns {Promise<{ success: boolean, response?: string, error?: string, conversationId?: string }>}
  */
-async function generateResponse(userMessage, phoneNumber) {
+async function generateResponse(userMessage, phoneNumber, options = {}) {
   try {
-    // Get user context
-    const userContext = await getUserContext(phoneNumber);
-    if (!userContext) {
-      return { 
-        success: false, 
-        error: 'User not found' 
-      };
-    }
-
-    // Get conversation history
-    const history = await getUserHistory(userContext.id, 5);
+    const { conversationHistory = '', voiceMode = 'voice', userContext = {} } = options;
     
-    // Build conversation context
-    let conversationContext = '';
-    if (history.length > 0) {
-      conversationContext = history.reverse().map(log => 
-        `User: ${log.user_message}\nSAATHI: ${log.ai_response}`
-      ).join('\n\n');
+    // Get user context from database or use provided context
+    let dbUserContext = null;
+    if (!userContext.name) {
+      dbUserContext = await getUserContext(phoneNumber);
     }
+    
+    const finalUserContext = {
+      name: userContext.name || dbUserContext?.name || 'User',
+      phoneNumber: phoneNumber,
+      preferences: dbUserContext?.preferences || {}
+    };
 
-    // Build system prompt with user context
-    const systemPrompt = `You are SAATHI, an AI voice assistant for CallGenie. 
+    // Build enhanced system prompt for voice-to-voice interaction
+    const systemPrompt = `You are SAATHI, an advanced AI voice assistant for CallGenie, designed for natural voice-to-voice conversations.
 
 User Context:
-- Name: ${userContext.name || 'Unknown'}
-- Phone: ${userContext.phone_number}
+- Name: ${finalUserContext.name}
+- Phone: ${finalUserContext.phoneNumber}
+- Mode: ${voiceMode === 'voice' ? 'Voice Conversation' : 'Text Chat'}
 
-Instructions:
-1. Be conversational, friendly, and helpful
-2. Keep responses concise (under 100 words) for voice interaction
-3. Use natural, spoken language
-4. If this is a new conversation, introduce yourself briefly
-5. Remember previous context from the conversation history
-6. If the user asks about CallGenie services, provide relevant information
-7. If unsure, ask clarifying questions
+Instructions for Voice-to-Voice Interaction:
+1. Be conversational, friendly, and engaging - like talking to a helpful friend
+2. Keep responses natural and spoken (not written text)
+3. Use contractions and casual language appropriate for voice
+4. Keep responses concise (50-80 words) for comfortable voice interaction
+5. Show enthusiasm and personality in your responses
+6. Ask follow-up questions to keep the conversation flowing
+7. If the user asks about CallGenie services, provide helpful information
+8. Use conversational phrases like "That's interesting!", "I'd love to help with that", etc.
+9. If unsure, ask clarifying questions in a friendly way
+10. Remember context from the conversation history
 
 Previous conversation:
-${conversationContext}
+${conversationHistory}
 
 Current user message: "${userMessage}"
 
-Respond naturally as SAATHI:`;
+Respond naturally as SAATHI in a conversational voice style:`;
 
-    // Generate response using GPT
+    // Generate response using GPT with enhanced settings
     const completion = await openai.chat.completions.create({
       model: process.env.OPENAI_MODEL || 'gpt-4-turbo-preview',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userMessage }
       ],
-      max_tokens: 150,
-      temperature: 0.7,
+      max_tokens: voiceMode === 'voice' ? 120 : 200, // Shorter for voice
+      temperature: 0.8, // Slightly more creative for voice
+      presence_penalty: 0.1, // Encourage more engaging responses
+      frequency_penalty: 0.1, // Reduce repetition
     });
 
     const response = completion.choices[0]?.message?.content?.trim();
@@ -128,10 +129,16 @@ Respond naturally as SAATHI:`;
       };
     }
 
+    // Save conversation log if user context is available
+    if (dbUserContext?.id) {
+      await saveConversationLog(dbUserContext.id, userMessage, response);
+    }
+
     return { 
       success: true, 
       response,
-      userId: userContext.id
+      userId: dbUserContext?.id,
+      conversationId: Date.now().toString()
     };
 
   } catch (error) {

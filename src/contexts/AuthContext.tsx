@@ -50,10 +50,44 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setLoading(false);
 
         if (event === 'SIGNED_IN') {
-          toast({
-            title: "Welcome to CallGenie!",
-            description: `Successfully signed in as ${session?.user?.email}`,
-          });
+          // Assign phone number to user
+          if (session?.user?.id) {
+            try {
+              const response = await fetch('/api/auth/onboard', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  user_id: session.user.id
+                }),
+              });
+
+              const data = await response.json();
+              if (data.success) {
+                toast({
+                  title: "Welcome to CallGenie!",
+                  description: `Successfully signed in as ${session?.user?.email}. Your phone number: ${data.phone_number}`,
+                });
+              } else {
+                toast({
+                  title: "Welcome to CallGenie!",
+                  description: `Successfully signed in as ${session?.user?.email}`,
+                });
+              }
+            } catch (error) {
+              console.error('Failed to assign phone number:', error);
+              toast({
+                title: "Welcome to CallGenie!",
+                description: `Successfully signed in as ${session?.user?.email}`,
+              });
+            }
+          } else {
+            toast({
+              title: "Welcome to CallGenie!",
+              description: `Successfully signed in as ${session?.user?.email}`,
+            });
+          }
         } else if (event === 'SIGNED_OUT') {
           toast({
             title: "Signed out",

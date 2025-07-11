@@ -1,10 +1,20 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Phone, Settings, BarChart3, MessageSquare, Copy, Mail, MapPin, LogOut, User } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+
+// Extend User type to include phone_number
+interface ExtendedUser {
+  id: string;
+  email?: string;
+  phone_number?: string;
+  user_metadata?: {
+    full_name?: string;
+  };
+}
 
 interface DashboardProps {
   activeTab: string;
@@ -15,6 +25,8 @@ interface DashboardProps {
 export const Dashboard = ({ activeTab, setActiveTab, copyNumber }: DashboardProps) => {
   const { user, signOut } = useAuth();
   const { toast } = useToast();
+  const [assignedPhoneNumber, setAssignedPhoneNumber] = useState<string>('');
+  const [loadingPhoneNumber, setLoadingPhoneNumber] = useState(false);
 
   const handleSignOut = async () => {
     try {
@@ -32,8 +44,48 @@ export const Dashboard = ({ activeTab, setActiveTab, copyNumber }: DashboardProp
     }
   };
 
+  // Fetch user's assigned phone number
+  useEffect(() => {
+    const fetchUserPhoneNumber = async () => {
+      if (!user?.id) return;
+      
+      setLoadingPhoneNumber(true);
+      try {
+        const response = await fetch(`/api/auth/phone/${user.id}`);
+        const data = await response.json();
+        
+        if (data.success && data.phone_number) {
+          setAssignedPhoneNumber(data.phone_number);
+        } else {
+          // If no phone number assigned, try to assign one
+          const onboardResponse = await fetch('/api/auth/onboard', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              user_id: user.id
+            }),
+          });
+          
+          const onboardData = await onboardResponse.json();
+          if (onboardData.success && onboardData.phone_number) {
+            setAssignedPhoneNumber(onboardData.phone_number);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch phone number:', error);
+      } finally {
+        setLoadingPhoneNumber(false);
+      }
+    };
+
+    fetchUserPhoneNumber();
+  }, [user?.id]);
+
   const handleCopyNumber = () => {
-    copyNumber();
+    const phoneNumber = assignedPhoneNumber || '+1 (555) 123-4567';
+    navigator.clipboard.writeText(phoneNumber);
     toast({
       title: "Number copied!",
       description: "Your CallGenie number has been copied to clipboard.",
@@ -91,8 +143,23 @@ export const Dashboard = ({ activeTab, setActiveTab, copyNumber }: DashboardProp
                   <Phone className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">+1 (555) 123-4567</div>
-                  <Button size="sm" variant="outline" onClick={handleCopyNumber} className="mt-2">
+                  <div className="text-2xl font-bold">
+                    {loadingPhoneNumber ? (
+                      <div className="flex items-center space-x-2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-indigo-600"></div>
+                        <span className="text-gray-500">Loading...</span>
+                      </div>
+                    ) : (
+                      assignedPhoneNumber || '+1 (555) 123-4567'
+                    )}
+                  </div>
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    onClick={handleCopyNumber} 
+                    className="mt-2"
+                    disabled={loadingPhoneNumber}
+                  >
                     <Copy className="h-4 w-4 mr-2" />
                     Copy Number
                   </Button>

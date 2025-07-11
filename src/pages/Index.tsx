@@ -9,8 +9,8 @@ const Index = () => {
   const { user, loading } = useAuth();
 
   const copyNumber = () => {
-    navigator.clipboard.writeText('+1 (555) 123-4567');
-    // Note: Toast functionality would need to be moved to a component that has access to useToast
+    // This function is now handled inside the Dashboard component
+    // The Dashboard component will handle copying the actual assigned phone number
   };
 
   // Show loading spinner while checking authentication
